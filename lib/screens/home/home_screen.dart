@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:latlng/latlng.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:footsteps/token.dart';
+import 'package:latlong/latlong.dart';
 import 'package:location/location.dart';
-import 'package:map/map.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -10,11 +10,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final controller = MapController(
-    location: LatLng(40.12676, 116.21339),
-    zoom: 16,
-  );
-  final Location location = new Location();
+  final controller = MapController();
+  final Location location = Location();
   bool _serviceEnabled;
   PermissionStatus _permissionGranted;
   LocationData _locationData;
@@ -37,18 +34,47 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     _locationData = await location.getLocation();
-    print(_locationData.latitude);
+    controller.move(
+      LatLng(_locationData.latitude, _locationData.longitude),
+      controller.zoom,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    var markers = <Marker>[
+      Marker(
+        width: 80.0,
+        height: 80.0,
+        point: LatLng(40.12676, 116.21339),
+        builder: (ctx) => Container(
+          child: FlutterLogo(),
+        ),
+        anchorPos: AnchorPos.align(AnchorAlign.center),
+      ),
+    ];
     return Scaffold(
       appBar: AppBar(
-        title: Text('Open Street Map'),
+        title: Text('mapbox'),
       ),
-      body: Map(
-        controller: controller,
-        provider: const CachedOsmProvider(),
+      body: FlutterMap(
+        mapController: controller,
+        options: MapOptions(
+          center: LatLng(40.12676, 116.21339),
+          zoom: 14.0,
+        ),
+        layers: [
+          TileLayerOptions(
+            // urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            // subdomains: ['a', 'b', 'c'],
+            urlTemplate:
+                "https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token={accessToken}",
+            additionalOptions: {
+              'accessToken': mapboxToken,
+            },
+          ),
+          MarkerLayerOptions(markers: markers),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: onLocate,
@@ -56,14 +82,5 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Icon(Icons.my_location),
       ),
     );
-  }
-}
-
-class CachedOsmProvider extends MapProvider {
-  const CachedOsmProvider();
-
-  @override
-  ImageProvider getTile(int x, int y, int z) {
-    return CachedNetworkImageProvider('http://a.tile.osm.org/$z/$x/$y.png');
   }
 }
