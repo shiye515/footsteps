@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:footsteps/helper/location_getter.dart';
 import 'package:footsteps/token.dart';
 import 'package:latlong/latlong.dart';
 import 'package:location/location.dart';
@@ -10,57 +13,50 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final controller = MapController();
-  final Location location = Location();
-  bool _serviceEnabled;
-  PermissionStatus _permissionGranted;
-  LocationData _locationData;
+  final mapController = MapController();
+  final LocationGetter locationGetter = LocationGetter();
+  StreamSubscription subscription;
+
+  LatLng point;
+  List<LatLng> points = [];
 
   void onLocate() async {
-    _serviceEnabled = await location.serviceEnabled();
-    if (!_serviceEnabled) {
-      _serviceEnabled = await location.requestService();
-      if (!_serviceEnabled) {
-        return;
-      }
-    }
+    var data = await locationGetter.getLocation();
+    onLocationChange(data);
+  }
 
-    _permissionGranted = await location.hasPermission();
-    if (_permissionGranted == PermissionStatus.DENIED) {
-      _permissionGranted = await location.requestPermission();
-      if (_permissionGranted != PermissionStatus.GRANTED) {
-        return;
-      }
+  onLocationChange(LocationData data) {
+    var p = LatLng(data.latitude, data.longitude).round();
+    if (p != point) {
+      point = p;
+      points.add(p);
+      mapController.move(p, mapController.zoom);
+      setState(() {});
     }
+  }
 
-    _locationData = await location.getLocation();
-    controller.move(
-      LatLng(_locationData.latitude, _locationData.longitude),
-      controller.zoom,
-    );
+  @override
+  void initState() {
+    super.initState();
+    subscription = locationGetter.locations.listen(onLocationChange);
+  }
+
+  @override
+  void dispose() {
+    subscription.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    var markers = <Marker>[
-      Marker(
-        width: 80.0,
-        height: 80.0,
-        point: LatLng(40.12676, 116.21339),
-        builder: (ctx) => Container(
-          child: FlutterLogo(),
-        ),
-        anchorPos: AnchorPos.align(AnchorAlign.center),
-      ),
-    ];
     return Scaffold(
       appBar: AppBar(
         title: Text('mapbox'),
       ),
       body: FlutterMap(
-        mapController: controller,
+        mapController: mapController,
         options: MapOptions(
-          center: LatLng(40.12676, 116.21339),
+          center: LatLng(40, 116),
           zoom: 14.0,
         ),
         layers: [
@@ -73,7 +69,28 @@ class _HomeScreenState extends State<HomeScreen> {
               'accessToken': mapboxToken,
             },
           ),
-          MarkerLayerOptions(markers: markers),
+          MarkerLayerOptions(markers: <Marker>[
+            Marker(
+              width: 20.0,
+              height: 20.0,
+              point: point,
+              builder: (ctx) => Icon(
+                Icons.my_location,
+                color: Colors.blueAccent,
+                size: 20,
+              ),
+              anchorPos: AnchorPos.align(AnchorAlign.center),
+            ),
+          ]),
+          PolylineLayerOptions(
+            polylines: [
+              Polyline(
+                points: points,
+                strokeWidth: 1.0,
+                color: Colors.red,
+              ),
+            ],
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
